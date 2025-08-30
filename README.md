@@ -23,6 +23,10 @@
 2. 安装所需的 Python 库：
    
    ```bash
+   # 可选步骤：如果你需要虚拟环境
+   python -m venv .venv
+
+   # 必要步骤：安装依赖
    pip install -r requirements.txt
    ```
 
@@ -46,19 +50,26 @@
 
 3. 运行脚本：
    
+   如果你有虚拟环境：
+   ```bash
+   # Windows 用户
+   .venv\Scripts\activate
+   # macOS 用户以及 Linux 用户
+   source .venv/bin/activate
+   ```
+
    使用安卓客户端协议
    
    ```bash
    python android.py
    ```
 
-```
-使用web协议
-```
+   使用web协议
 
-```bash
-    python web.py
-```
+
+   ```bash
+      python web.py
+   ```
 
 ### 命令
 
