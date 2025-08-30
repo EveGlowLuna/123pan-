@@ -234,33 +234,57 @@ class Pan123:
             print("code = 3 Error:" + str(res_code_download))
             # print(linkRes.json())
             return res_code_download
-        download_link_base64 = link_res.json()["data"]["DownloadUrl"]
-        base64_url = re.findall("params=(.*)&", download_link_base64)[0]
-        # print(Base64Url)
-        down_load_url = base64.b64decode(base64_url)
-        down_load_url = down_load_url.decode("utf-8")
-
-        next_to_get = requests.get(down_load_url,timeout=10).json()
-        redirect_url = next_to_get["data"]["redirect_url"]
+        down_load_url = link_res.json()["data"]["DownloadUrl"]
+        next_to_get = requests.get(down_load_url, timeout=10, allow_redirects=False).text
+        url_pattern = re.compile(r"href='(https?://[^']+)'")
+        redirect_url = url_pattern.findall(next_to_get)[0]
         if showlink:
             print(redirect_url)
 
         return redirect_url
 
-    def download(self, file_number):
+    def download(self, file_number, download_path="download/"):
         file_detail = self.list[file_number]
+        if file_detail["Type"] == 1:
+            print("打包下载")
+            file_name = file_detail["FileName"] + ".zip"
+        else:
+            file_name = file_detail["FileName"]  # 文件名
         down_load_url = self.link(file_number, showlink=False)
-        file_name = file_detail["FileName"]  # 文件名
-        if os.path.exists(file_name):
-            print("文件 " + file_name + " 已存在，是否要覆盖？")
-            sure_download = input("输入1覆盖，2取消：")
-            if sure_download != "1":
-                return
-        down = requests.get(down_load_url, stream=True, timeout=10)
 
-        file_size = int(down.headers["Content-Length"])  # 文件大小
-        content_size = int(file_size)  # 文件总大小
-        data_count = 0  # 当前已传输的大小
+        if not os.path.exists(download_path):
+            print("文件夹不存在，创建文件夹")
+            os.makedirs(download_path)
+
+        file_path_full = os.path.join(download_path, file_name)
+        headers = {}
+        mode = "wb"
+        if os.path.exists(file_path_full):
+            current_size = os.path.getsize(file_path_full)
+            headers = {"Range": f"bytes={current_size}-"}
+            mode = "ab"
+            print(f"文件 {file_name} 已存在，尝试从 {current_size} 字节处续传...")
+        else:
+            current_size = 0
+            print(f"开始下载文件 {file_name}")
+
+        max_retries = 5
+        for retry_count in range(max_retries):
+            try:
+                down = requests.get(down_load_url, stream=True, headers=headers, timeout=10)
+                down.raise_for_status()  # 检查HTTP请求是否成功
+                break  # 成功则跳出循环
+            except requests.exceptions.RequestException as e:
+                print(f"\n下载失败: {e}，正在重试... ({retry_count + 1}/{max_retries})")
+                if retry_count < max_retries - 1:
+                    time.sleep(2 ** retry_count)  # 指数退避
+                else:
+                    print("\n达到最大重试次数，下载失败。")
+                    return
+
+        file_size = int(down.headers.get("Content-Length", 0))  # 文件大小
+        content_size = int(file_size) + current_size  # 文件总大小
+        data_count = current_size  # 当前已传输的大小
         if file_size > 1048576:
             size_print_download = str(round(file_size / 1048576, 2)) + "M"
         else:
@@ -269,7 +293,7 @@ class Pan123:
         time1 = time.time()
         time_temp = time1
         data_count_temp = 0
-        with open(file_name, "wb") as f:
+        with open(file_path_full, mode) as f:
             for i in down.iter_content(1024):
                 f.write(i)
                 done_block = int((data_count / content_size) * 50)
@@ -752,6 +776,12 @@ if __name__ == "__main__":
                 if int(command[9:]) > len(pan.list) or int(command[9:]) < 1:
                     print("输入错误")
                     continue
+                if pan.list[int(command[9:]) - 1]["Type"] == 1:
+                    print(pan.list[int(command[9:]) - 1]["FileName"])
+                    print("将打包下载文件夹，输入1开始下载:", end="")
+                    sure = input()
+                    if sure != "1":
+                        continue
                 pan.download(int(command[9:]) - 1)
             else:
                 print("输入错误")

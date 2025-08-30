@@ -1,0 +1,7 @@
+123pan.txt
+.venv/
+.pytest_cache/
+.idea/
+.vscode/
+.__pycache__/
+.download/
